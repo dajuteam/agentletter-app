@@ -21,13 +21,14 @@ import {
   ArrowUp,
   ArrowDown,
   Building2,
-  Smartphone
+  Smartphone,
+  Lock
 } from 'lucide-react';
 
 // --- 常數設定 ---
 
-// 使用使用者提供的 API Key 作為預設值
-const DEFAULT_API_KEY = "AIzaSyDfRO2uM-o7drfn3nmNXqMBiLZm2JnA-Tc";
+// 已更新為指定的預設 Key
+const DEFAULT_API_KEY = "AIzaSyDfRO2uM-o7drfn3nmNXqMBiLZm2JnA-Tc"; 
 
 const TEAMS = [
   { value: "大橘團隊", label: "大橘團隊" },
@@ -39,6 +40,12 @@ const STORES = [
   { value: "有巢氏房屋13期復北立辰店", label: "有巢氏房屋13期復北立辰店" },
   { value: "永慶不動產台中公益大業店", label: "永慶不動產台中公益大業店" }
 ];
+
+// 店頭法定資訊對照表
+const STORE_INFOS = {
+  "永慶不動產台中公益大業店": `永慶不動產台中公益大業加盟店\n敦璟開發股份有限公司\n張欽弼（102）中市經紀字第00145號`,
+  "有巢氏房屋13期復北立辰店": `有巢氏房屋13期復北立辰加盟店\n立辰開發股份有限公司\n謝玲美(105)中市經紀字第01666號`
+};
 
 const SCENARIOS = [
   { value: "team_advantage", label: "🏆 團隊優勢 (三店連賣/行銷強)", icon: "💪", content: "三家店連賣、台中最大房產資訊網、多媒體行銷、短影音行銷、社群行銷、空拍、現廣等" },
@@ -172,6 +179,9 @@ const generateAIContent = async (data, apiKey) => {
   
   const structureLabel = structureOrder.map(id => STRUCTURE_ITEMS.find(i => i.id === id)?.label).join(" -> ");
 
+  // 取得店頭法定資訊
+  const storeLegalInfo = STORE_INFOS[storeName] || "";
+
   let prompt = `
     Role: Professional Real Estate Agent in Taichung, Taiwan (Big Orange Team).
     Task: Write a sales copy for a property owner based on specific inputs.
@@ -206,6 +216,7 @@ const generateAIContent = async (data, apiKey) => {
        - If "Team Advantage" is selected, mention: "三家店連賣、台中最大房產資訊網、多媒體行銷...".
        - Address pain points with empathy and professional solutions.
        - Ensure the content includes the Agent Name and Phone Number clearly at the end.
+       ${storeLegalInfo ? `- **MANDATORY**: At the VERY BOTTOM of the message, you MUST append the following store legal information exactly as written:\n\n${storeLegalInfo}\n\n` : ''}
     4. **Output Style**: 
        - Generate ONLY plain text. 
        - **DO NOT use Markdown formatting** (NO **, ##, or bullet point symbols that look like markdown headers/bold). Use standard punctuation only.
@@ -224,11 +235,15 @@ const generateAIContent = async (data, apiKey) => {
     return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI 生成無內容，請稍後再試。";
   } catch (error) {
     console.error("AI Error:", error);
-    return `⚠️ AI 生成失敗：${error.message}\n\n請檢查 API Key 是否正確，或是網路連線是否正常。`;
+    return `⚠️ AI 生成失敗：${error.message}\n\n請檢查 API Key 是否正確 (設定選單)，或是網路連線是否正常。`;
   }
 };
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState(false);
+
   const [formData, setFormData] = useState({
     agentName: "",
     agentPhone: "", 
@@ -328,7 +343,23 @@ export default function App() {
     });
   };
 
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (passwordInput === "8899") {
+      setIsAuthenticated(true);
+      setLoginError(false);
+    } else {
+      setLoginError(true);
+    }
+  };
+
   const generate = async () => {
+    if (!apiKey) {
+        setShowSettings(true);
+        alert("請先設定 API Key");
+        return;
+    }
+
     setIsLoading(true);
     
     // Auto scroll to output (Right panel)
@@ -377,8 +408,55 @@ export default function App() {
 
   const lineShareUrl = `https://line.me/R/msg/text/?${encodeURIComponent(generatedText)}`;
 
+  // 登入介面
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans">
+        <div className="bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex justify-center mb-6">
+            <div className="p-4 rounded-full bg-slate-700/50 shadow-inner">
+              <Lock size={32} className="text-orange-500" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-white text-center mb-2">房仲開發信產生器 <span className="text-orange-500 text-sm">PRO</span></h2>
+          <p className="text-slate-400 text-center text-sm mb-6">請輸入密碼以繼續使用</p>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="請輸入密碼"
+                className={`w-full bg-slate-900 border rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all text-center tracking-widest placeholder:tracking-normal placeholder:text-slate-600 ${loginError ? 'border-red-500' : 'border-slate-700'}`}
+                autoFocus
+              />
+            </div>
+            
+            {loginError && (
+              <div className="text-red-400 text-xs text-center flex items-center justify-center gap-1 animate-pulse">
+                <AlertTriangle size={12} /> 密碼錯誤，請重新輸入
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold py-3 rounded-lg transition-all active:scale-95 shadow-lg shadow-orange-500/20"
+            >
+              進入系統
+            </button>
+          </form>
+          <div className="mt-6 text-center text-xs text-slate-500">
+             Dajuteam xcrab
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 主程式
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-orange-500/30">
+    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-orange-500/30 pb-10">
       
       {/* Header */}
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-20 shadow-md">
@@ -391,7 +469,7 @@ export default function App() {
               <h1 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
                 房仲開發信產生器 <span className="text-orange-500 text-xs">PRO</span>
               </h1>
-              <p className="text-xs text-slate-400">大橘團隊 x Google Gemini AI</p>
+              <p className="text-xs text-slate-400">大橘團隊 x XCRAB AI</p>
             </div>
           </div>
           
@@ -427,7 +505,7 @@ export default function App() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-slate-300">
-                系統已內建預設 API Key 供您直接使用。若額度用盡或想使用自己的 Key，請在下方輸入。
+                請輸入您的 Google Gemini API Key 以啟用 AI 功能。
               </p>
               <div>
                 <Label>Google Gemini API Key</Label>
@@ -548,7 +626,7 @@ export default function App() {
               )}
               {formData.scenarios.includes('sold_report') && (
                 <div className="bg-slate-900/50 p-3 rounded border border-slate-700/50 animate-in fade-in space-y-2">
-                   <p className="text-xs text-orange-400 font-bold mb-1">🎉 成交設定</p>
+                    <p className="text-xs text-orange-400 font-bold mb-1">🎉 成交設定</p>
                   <div>
                     <Label>成交總價 (萬)</Label>
                     <Input name="soldPrice" value={formData.soldPrice} onChange={handleChange} placeholder="例如：3200" type="number" />
